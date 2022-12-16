@@ -16,13 +16,14 @@
 #define MYFILE "test"
 void main(){
     int my_Socket; // the socket
-    char buffer[BUFSIZ]; // the file text
+    char changeMassege[BUFSIZ]; // the file text
     char com[5] = {0}; // exit message
     char size[256] = {0};// save file size
     int partSize1 = 0;//first part size
     int partSize2 = 0;//second part size
     int auth = 4190 ^ 3826;// xor
     int myFile;// file
+    size_t count = BUFSIZ;
     struct stat fileStat;// information of the file
     size_t sent = 0;// sent remaning size
     off_t offset = 0;//offset of the second part
@@ -45,44 +46,58 @@ void main(){
         exit(0);
     }
     else printf("connection succeed\n");
-    while(1){// infinity loop
+    for(;;){// infinity loop
         myFile = open(MYFILE,O_RDONLY);//open file
         if(myFile == -1){ // check if open succeed
         printf("Open file failed\n");
         fprintf(stderr, "Error opening file --> %s\n", strerror(errno));
         exit(0);
         }
-        else("file opened\n");
+        else printf("file opened\n");
         fstat(myFile, &fileStat);// get file stats
         sprintf(size, "%ld", fileStat.st_size);// cast file size from int to char array
-        send( my_Socket, size, sizeof(size), 0); // send size file to the server
+        send(my_Socket, size, sizeof(size), 0); // send size file to the server
         partSize1= (atoi(size))/2; // calculate first part size (cast char to int)
-        offset = partSize1+1; //get offset to the second part
+        // offset = partSize1+1; //get offset to the second part
         partSize2 = (atoi(size)) - partSize1;//calculate the second part size
-        while (((sent = sendfile(my_Socket, myFile, 0, BUFSIZ)) > 0) && (partSize1 > 0))// send the first part to server
-        {       
+        while ((partSize1 > 0))// send the first part to server
+        {   
+            sent = sendfile(my_Socket, myFile, &offset, count);
+            if(sent == -1){
+                printf("eror send data");
+                exit(0);
+            }
             partSize1 -= sent;
+            if(count > partSize1) count = partSize1;
         } 
-        
-        recv(my_Socket,buffer,BUFSIZ,0); // wait ro the authentication message 
-        if(atoi(buffer)== atoi(buf)){   // check if the authentication message is ok
-        bzero(&buffer,BUFSIZ);
+        count = BUFSIZ;
+        bzero(&changeMassege,BUFSIZ);
+        recv(my_Socket,changeMassege,BUFSIZ,0); // wait ro the authentication message 
+        if(atoi(changeMassege)== atoi(buf)){   // check if the authentication message is ok
             if(setsockopt(my_Socket,IPPROTO_TCP,TCP_CONGESTION,"reno",4)<0){ // change the cc algorithem
                 printf("eror changing cc\n");
                 exit(0);
             }
             else printf("change cc - reno\n");
         }
-           while (((sent = sendfile(my_Socket, myFile, &offset, BUFSIZ)) > 0) && (partSize2 > 0))//send the second part to server   
-        {
+           while ((partSize2 > 0))//send the second part to server   
+        {   
+            sent = sendfile(my_Socket, myFile, &offset, count);//send data
+            if(sent == -1){
+                printf("eror send data");
+                exit(0);
+            }
             partSize2 -= sent;
+            if(count > partSize2) {
+                count = partSize2;
+            }
         } 
         int command;
         printf("Enter command: any  -> Send again, (-2) -> exit \n");// check if to send again or exit
         scanf("%d", &command);
         if(command == -2){ // if exit
             sprintf(com,"%d",command);
-            printf("bye bye");
+            printf("bye bye\n");
             send( my_Socket, com, sizeof(com), 0); // send exit message
             close(my_Socket);//close socket
             break;
@@ -92,7 +107,9 @@ void main(){
         exit(0);
         }
         else printf("change cc - cubic\n");
-
+        offset = 0;
+        count = BUFSIZ;
     }
+
 
 }
