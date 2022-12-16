@@ -5,16 +5,15 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <netinet/tcp.h>
 #include <time.h>
 #include <errno.h>
 #include <unistd.h> // read(), write(), close()
 #define PORT 9999
 #define NAME "newTest.txt"
-#define TIMELEN 20
+//#define TIMELEN 20
 void listenTo(int client_Socket){
     int len;
-    static double part1times[TIMELEN] = {0}; // times of part one
-    static double part2times[TIMELEN] = {0};// times of part two
     int index = 0; // printe times loop index
     char buffer[BUFSIZ];// the message from the client
     int size =0;
@@ -23,21 +22,27 @@ void listenTo(int client_Socket){
     int partSize2 = 0; // save part2 size
     int auth = 4190 ^ 3826; // XOR
     FILE *fileRecived;// file recivef
-    ssize_t length; // length of func recv
-    char * buf[16]; // save char of xor
+    size_t length = 0; // length of func recv
+    size_t count = 0 ;
+    char buf[16]; // save char of xor
     clock_t time; // save recive message time
     sprintf(buf,"%d",auth); // cast the xor to char budder
-    int fileIndex = 0 ; //save file index
-    
+    size_t fileIndex = 0 ; //save file index
+    double *part1times = calloc(1, sizeof(double));//dynamic array for times of first part
+    double *part2times = calloc(1, sizeof(double));//dynamic array for times of second part
+
+
+
+  
     for(; ;) // infinity loop
     {
         bzero(buffer, BUFSIZ); //reset buffer
         recv(client_Socket,buffer,BUFSIZ,0); // recivre message from client and save in buffer
         size = atoi(buffer); // cast from char to int
-        if(size == 0) { // if client want to exit
+        if(size == -2) { // if client want to exit
             index=0;
             printf("cubic:\n");
-            while(part1times[index] != 0 && index != TIMELEN){ 
+            while(part1times[index] != 0 && index <= fileIndex){ 
                 avarageTime+=part1times[index]; // clculate all the time of the first parts
                 printf("%f \n",part1times[index]); // print all the times of the first part
                 index++;
@@ -47,7 +52,7 @@ void listenTo(int client_Socket){
             index =0; // reset 
             avarageTime=0; //reset
             printf("reno:\n");
-            while(part2times[index]!= 0 && index != TIMELEN){ 
+            while(part2times[index]!= 0 && index <= fileIndex){ 
                 avarageTime+=part2times[index];// clculate all the time of the second parts
                 printf("%f \n",part2times[index]);// print all the times of the second part
                 index++;
@@ -76,6 +81,11 @@ void listenTo(int client_Socket){
         time = clock() - time; // save recived time
         part1times[fileIndex] = ((double)time)/CLOCKS_PER_SEC;; // save the time in seconds
         write(client_Socket, buf, 16); // send XOR to client
+        if(setsockopt(client_Socket,IPPROTO_TCP,TCP_CONGESTION,"reno",4)<0){ // change the cc algorithem
+                printf("eror changing cc\n");
+                exit(0);
+            }
+        else printf("change cc - reno\n");
         time = clock(); // save start recive time
         while((partSize2>0)&&((length = recv(client_Socket,buffer,BUFSIZ,0))>0)){ // get second part of file
             fwrite(buffer, sizeof(char), length, fileRecived); // write to the file
@@ -84,12 +94,21 @@ void listenTo(int client_Socket){
         time = clock() - time; // save recived time
         part2times[fileIndex] +=((double)time)/CLOCKS_PER_SEC;// save time in second
         fileIndex++; // inc the file index
-    }
-    close(client_Socket); // close client socken when finish
-    
-}
+        part1times = realloc(part1times,(fileIndex+1)*sizeof(double));
+        part2times = realloc(part2times,(fileIndex+1)*sizeof(double));
 
-void main(){
+        if(setsockopt(client_Socket,IPPROTO_TCP,TCP_CONGESTION,"cubic",5)<0){ // change the cc algorithem
+                printf("eror changing cc\n");
+                exit(0);
+            }
+            else printf("change cc - cubic\n");
+    }
+    free(part1times);
+    free(part2times);
+    close(client_Socket); // close client socken when finish
+    }  
+
+int main(){
     int mySocket,data, len, clientSocket; 
     struct in_addr serveraddr;
     struct sockaddr_in serverAddress, clientAddress;
