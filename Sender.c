@@ -14,9 +14,9 @@
 #include <sys/sendfile.h>
 #define PORT 9999
 #define MYFILE "test"
-void main(){
+int main(){
     int my_Socket; // the socket
-    char changeMassege[BUFSIZ]; // the file text
+    char changeMassege[BUFSIZ]; // the authentication text
     char com[5] = {0}; // exit message
     char size[256] = {0};// save file size
     int partSize1 = 0;//first part size
@@ -30,6 +30,7 @@ void main(){
     char buf[16]; // xor char
     sprintf(buf,"%d",auth);// cans the xor to char 
     struct sockaddr_in client_Address;
+    
     memset(&client_Address,0,sizeof(client_Address));//reset client
     client_Address.sin_family = AF_INET; // Address family, AF_INET unsigned 
     client_Address.sin_port = htons(PORT); // Port number 
@@ -58,7 +59,6 @@ void main(){
         sprintf(size, "%ld", fileStat.st_size);// cast file size from int to char array
         send(my_Socket, size, sizeof(size), 0); // send size file to the server
         partSize1= (atoi(size))/2; // calculate first part size (cast char to int)
-        // offset = partSize1+1; //get offset to the second part
         partSize2 = (atoi(size)) - partSize1;//calculate the second part size
         while ((partSize1 > 0))// send the first part to server
         {   
@@ -92,6 +92,15 @@ void main(){
                 count = partSize2;
             }
         } 
+        if(setsockopt(my_Socket,IPPROTO_TCP,TCP_CONGESTION,"cubic",5)<0){ // change the cc algorithem
+        printf("eror changing cc\n");
+        exit(0);
+        }
+        else printf("change cc - cubic\n");
+        offset = 0;
+        count = BUFSIZ;
+        recv(my_Socket,com,sizeof(com),0); // wait for reciver to finish
+        bzero(&com,sizeof(com)); 
         int command;
         printf("Enter command: any  -> Send again, (-2) -> exit \n");// check if to send again or exit
         scanf("%d", &command);
@@ -102,14 +111,8 @@ void main(){
             close(my_Socket);//close socket
             break;
         }
-        if(setsockopt(my_Socket,IPPROTO_TCP,TCP_CONGESTION,"cubic",5)<0){ // change the cc algorithem
-        printf("eror changing cc\n");
-        exit(0);
-        }
-        else printf("change cc - cubic\n");
-        offset = 0;
-        count = BUFSIZ;
-    }
 
+    }
+    return 0;
 
 }
