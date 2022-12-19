@@ -13,21 +13,20 @@
 #define NAME "newTest.txt"
 //#define TIMELEN 20
 void listenTo(int client_Socket){
-    int len;
     int index = 0; // printe times loop index
     char buffer[BUFSIZ];// the message from the client
-    char sizefile[256];
-    int size =0;
+    char sizefile[256]; // save the file size in buffer 
+    int size =0;// save the cast of sizefile to integer
     double avarageTime=0; // save the avarage time of each part
     int partSize1 = 0; // save part1 size
     int partSize2 = 0; // save part2 size
     int auth = 4190 ^ 3826; // XOR
     FILE *fileRecived;// file recivef
     size_t length = 0; // length of func recv
-    size_t count = 0 ;
     char buf[16]; // save char of xor
+    char fin[5]; //save the finish
     clock_t time; // save recive message time
-    sprintf(buf,"%d",auth); // cast the xor to char budder
+    sprintf(buf,"%d",auth); // cast the xor to char buffer
     size_t fileIndex = 0 ; //save file index
     double *part1times = calloc(1, sizeof(double));//dynamic array for times of first part
     double *part2times = calloc(1, sizeof(double));//dynamic array for times of second part
@@ -40,8 +39,10 @@ void listenTo(int client_Socket){
 
         recv(client_Socket,sizefile,256,0); // recivre message from client and save in buffer
         size = atoi(sizefile); // cast from char to int
+        if(size == 0){
+            printf("eror recive size/exit massege");
+        }
         if(size == -2) { // if client want to exit
-            index=0;
             printf("cubic:\n");
             while(index < fileIndex){ 
                 avarageTime+=part1times[index]; // clculate all the time of the first parts
@@ -106,22 +107,22 @@ void listenTo(int client_Socket){
                 exit(0);
             }
             partSize2 -= length;
-            if(partSize2==0){
-                partSize2= 0 ;
-            }
+
 
         }
         time = clock() - time; // save recived time
         part2times[fileIndex] +=((double)time)/CLOCKS_PER_SEC;// save time in second
+        sprintf(fin,"%d",3); // cast the fin to char buffer    
+        send(client_Socket, fin, 5,0);// send finish to client
         fileIndex++; // inc the file index
-        part1times = realloc(part1times,(fileIndex+1)*sizeof(double));
-        part2times = realloc(part2times,(fileIndex+1)*sizeof(double));
+        part1times = realloc(part1times,(fileIndex+1)*sizeof(double));//size++
+        part2times = realloc(part2times,(fileIndex+1)*sizeof(double));//size++
 
         if(setsockopt(client_Socket,IPPROTO_TCP,TCP_CONGESTION,"cubic",5)<0){ // change the cc algorithem
                 printf("eror changing cc\n");
                 exit(0);
             }
-            else printf("change cc - cubic\n");
+        else printf("change cc - cubic\n");
     }
     free(part1times);
     free(part2times);
@@ -170,5 +171,5 @@ int main(){
     else printf("eccept succeed\n");
     listenTo(clientSocket); // go to listenTo
     close(mySocket); // close socket
-    return 1;
+    return 0;
 }
